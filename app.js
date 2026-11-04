@@ -13,11 +13,25 @@ const focusClose = document.querySelector('[data-clear-focus]');
 const status = document.querySelector('[data-status]');
 const motionToggle = document.querySelector('[data-motion-toggle]');
 const skipIntro = document.querySelector('[data-skip-intro]');
+const panLeft = document.querySelector('[data-pan-left]');
+const zoomOut = document.querySelector('[data-zoom-out]');
+const zoomLevel = document.querySelector('[data-zoom-level]');
+const zoomIn = document.querySelector('[data-zoom-in]');
+const resetView = document.querySelector('[data-reset-view]');
+const panRight = document.querySelector('[data-pan-right]');
 
 let selectedId = null;
 let previousFocusedId = null;
 let introTimer;
 let reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let sceneZoom = 1;
+let scenePanX = 0;
+let panGesture = null;
+
+const MIN_SCENE_ZOOM = 1;
+const MAX_SCENE_ZOOM = 2.4;
+const SCENE_ZOOM_STEP = 0.2;
+const SCENE_PAN_STEP = 160;
 
 function renderRoster() {
   legends.innerHTML = characterRoster.map((character, index) => `
@@ -66,6 +80,64 @@ function announce(message) {
   status.textContent = message;
 }
 
+function getMaxScenePan() {
+  const stageWidth = stage.clientWidth || window.innerWidth;
+  return Math.max(0, stageWidth * (sceneZoom - 1) * 0.46);
+}
+
+function clampScenePan(value) {
+  const limit = getMaxScenePan();
+  return Math.min(limit, Math.max(-limit, value));
+}
+
+function applySceneView() {
+  scenePanX = clampScenePan(scenePanX);
+  legends.style.setProperty('--scene-zoom', String(sceneZoom));
+  legends.style.setProperty('--scene-pan-x', `${Math.round(scenePanX)}px`);
+  zoomLevel.textContent = `${Math.round(sceneZoom * 100)}%`;
+  zoomLevel.setAttribute('aria-valuemin', String(MIN_SCENE_ZOOM * 100));
+  zoomLevel.setAttribute('aria-valuemax', String(MAX_SCENE_ZOOM * 100));
+  zoomLevel.setAttribute('aria-valuenow', String(Math.round(sceneZoom * 100)));
+  zoomIn.disabled = sceneZoom >= MAX_SCENE_ZOOM;
+  zoomOut.disabled = sceneZoom <= MIN_SCENE_ZOOM;
+  panLeft.disabled = scenePanX <= -getMaxScenePan();
+  panRight.disabled = scenePanX >= getMaxScenePan();
+  resetView.disabled = sceneZoom === MIN_SCENE_ZOOM && scenePanX === 0;
+}
+
+function setSceneZoom(nextZoom) {
+  sceneZoom = Math.min(MAX_SCENE_ZOOM, Math.max(MIN_SCENE_ZOOM, nextZoom));
+  if (sceneZoom === MIN_SCENE_ZOOM) scenePanX = 0;
+  applySceneView();
+}
+
+function setScenePan(nextPan) {
+  scenePanX = clampScenePan(nextPan);
+  applySceneView();
+}
+
+function resetSceneView() {
+  sceneZoom = MIN_SCENE_ZOOM;
+  scenePanX = 0;
+  applySceneView();
+  resetParallax();
+}
+
+function bringCharacterIntoView(button) {
+  if (!button || sceneZoom === MIN_SCENE_ZOOM || typeof button.getBoundingClientRect !== 'function') return;
+
+  const stageRect = stage.getBoundingClientRect();
+  const characterRect = button.getBoundingClientRect();
+  const margin = Math.min(72, stageRect.width * 0.08);
+
+  if (characterRect.left < stageRect.left + margin) {
+    scenePanX += stageRect.left + margin - characterRect.left;
+  } else if (characterRect.right > stageRect.right - margin) {
+    scenePanX -= characterRect.right - (stageRect.right - margin);
+  }
+  applySceneView();
+}
+
 function selectCharacter(id, { moveFocus = true } = {}) {
   const character = getCharacterById(id);
   if (!character) return;
@@ -82,6 +154,7 @@ function selectCharacter(id, { moveFocus = true } = {}) {
     button.setAttribute('aria-pressed', String(active));
   });
 
+  bringCharacterIntoView(document.querySelector(`[data-character-id="${selectedId}"]`));
   announce(`${character.name} is now in focus. ${character.quote}`);
   if (moveFocus) {
     window.setTimeout(() => focusClose.focus(), reducedMotion ? 0 : 520);
@@ -142,8 +215,43 @@ function resetParallax() {
   sanctuary.style.setProperty('--parallax-y', '0px');
 }
 
+function isStageInteractiveTarget(target) {
+  return Boolean(target?.closest?.('button, a, [data-focus-card]'));
+}
+
+function beginPan(event) {
+  if (sceneZoom === MIN_SCENE_ZOOM || isStageInteractiveTarget(event.target)) return;
+
+  panGesture = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    originX: scenePanX,
+  };
+  stage.setPointerCapture?.(event.pointerId);
+}
+
+function movePanOrApplyParallax(event) {
+  if (!panGesture) {
+    applyParallax(event);
+    return;
+  }
+
+  const delta = event.clientX - panGesture.startX;
+  if (Math.abs(delta) > 4) {
+    event.preventDefault?.();
+    setScenePan(panGesture.originX + delta);
+  }
+}
+
+function endPan(event) {
+  if (!panGesture) return;
+  if (stage.hasPointerCapture?.(event.pointerId)) stage.releasePointerCapture(event.pointerId);
+  panGesture = null;
+}
+
 renderRoster();
 updateFocusCard(null);
+applySceneView();
 
 try {
   const stored = localStorage.getItem('hall-of-legends-reduced-motion');
@@ -154,13 +262,39 @@ setReducedMotion(reducedMotion);
 skipIntro.addEventListener('click', finishIntro);
 focusClose.addEventListener('click', () => clearSelection());
 motionToggle.addEventListener('click', () => setReducedMotion(!reducedMotion));
-stage.addEventListener('pointermove', applyParallax, { passive: true });
-stage.addEventListener('pointerleave', resetParallax, { passive: true });
+panLeft.addEventListener('click', () => setScenePan(scenePanX - SCENE_PAN_STEP));
+zoomOut.addEventListener('click', () => setSceneZoom(sceneZoom - SCENE_ZOOM_STEP));
+zoomIn.addEventListener('click', () => setSceneZoom(sceneZoom + SCENE_ZOOM_STEP));
+resetView.addEventListener('click', resetSceneView);
+panRight.addEventListener('click', () => setScenePan(scenePanX + SCENE_PAN_STEP));
+stage.addEventListener('pointerdown', beginPan);
+stage.addEventListener('pointermove', movePanOrApplyParallax, { passive: false });
+stage.addEventListener('pointerup', endPan);
+stage.addEventListener('pointercancel', endPan);
+stage.addEventListener('pointerleave', () => { if (!panGesture) resetParallax(); });
+window.addEventListener?.('resize', applySceneView);
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && selectedId) {
     event.preventDefault();
     clearSelection();
+    return;
+  }
+  if (event.key === '+' || event.key === '=') {
+    event.preventDefault();
+    setSceneZoom(sceneZoom + SCENE_ZOOM_STEP);
+  } else if (event.key === '-' || event.key === '_') {
+    event.preventDefault();
+    setSceneZoom(sceneZoom - SCENE_ZOOM_STEP);
+  } else if (event.key === '0') {
+    event.preventDefault();
+    resetSceneView();
+  } else if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    setScenePan(scenePanX - SCENE_PAN_STEP);
+  } else if (event.key === 'ArrowRight') {
+    event.preventDefault();
+    setScenePan(scenePanX + SCENE_PAN_STEP);
   }
 });
 

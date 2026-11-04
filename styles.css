@@ -172,12 +172,12 @@ a { text-decoration: none; }
 .intro-copy h1 i { color: var(--gold-soft); font-weight: 400; }
 .intro-description { max-width: 260px; margin: 25px 0 0; color: var(--muted); font-size: 12px; line-height: 1.75; }
 
-.scene-stage { position: absolute; inset: 0; z-index: 4; perspective: 1200px; }
+.scene-stage { position: absolute; inset: 0; z-index: 4; overflow: hidden; perspective: 1200px; touch-action: pan-y; }
 .axis-light { opacity: 0.45; background: radial-gradient(ellipse at 50% 78%, rgba(246, 204, 115, 0.26), transparent 22%); transition: opacity 700ms var(--ease); }
 .central-steps { inset: auto 0 0; height: 30%; z-index: -1; background: linear-gradient(180deg, transparent, rgba(4, 9, 12, 0.24) 35%, rgba(4, 9, 12, 0.52)); }
 
-.legends { position: absolute; inset: 0; transform: translate3d(var(--parallax-x), var(--parallax-y), 0); transition: transform 1.4s var(--ease); }
-.legend { position: absolute; bottom: var(--bottom); left: var(--left); z-index: var(--z); width: var(--size); min-width: 148px; padding: 0; border: 0; background: none; transform: translateZ(0); transform-origin: bottom center; transition: opacity 850ms var(--ease), filter 850ms var(--ease), transform 850ms var(--ease); }
+.legends { position: absolute; inset: 0; transform: translate3d(calc(var(--scene-pan-x, 0px) + var(--parallax-x, 0px)), var(--parallax-y, 0px), 0) scale(var(--scene-zoom, 1)); transform-origin: center bottom; transition: transform 1.4s var(--ease); will-change: transform; }
+.legend { position: absolute; bottom: var(--bottom); left: var(--left); z-index: var(--z); width: var(--size); min-width: 0; padding: 0; border: 0; background: none; transform: translateZ(0); transform-origin: bottom center; transition: opacity 850ms var(--ease), filter 850ms var(--ease), transform 850ms var(--ease); }
 .legend::before { content: ''; position: absolute; z-index: -1; right: 12%; bottom: 1%; left: 12%; height: 25%; border-radius: 50%; background: var(--aura); filter: blur(25px); opacity: 0.36; transform: scale(0.8, 0.22); transition: opacity 700ms var(--ease), transform 700ms var(--ease); }
 .legend__figure { display: block; width: 100%; height: auto; max-height: 68vh; object-fit: contain; object-position: bottom center; filter: drop-shadow(0 22px 14px rgba(1, 5, 8, 0.64)) drop-shadow(0 0 14px color-mix(in srgb, var(--aura) 34%, transparent)); transition: filter 700ms var(--ease), transform 700ms var(--ease); }
 .legend__label { position: absolute; right: 0; bottom: -19px; left: 0; display: flex; align-items: center; justify-content: center; gap: 6px; color: rgba(238, 224, 193, 0.76); font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; white-space: nowrap; opacity: 0.74; transform: translateY(0); transition: opacity 350ms ease, transform 350ms var(--ease); }
@@ -198,6 +198,12 @@ a { text-decoration: none; }
 
 .scene-guide { position: absolute; z-index: 14; right: clamp(25px, 7.5vw, 118px); bottom: clamp(94px, 11vh, 122px); display: flex; align-items: center; gap: 11px; max-width: 200px; color: var(--subtle); font-size: 9px; font-weight: 600; letter-spacing: 0.11em; line-height: 1.4; text-align: right; text-transform: uppercase; }
 .guide-line { display: block; width: 25px; height: 1px; background: var(--gold-soft); opacity: 0.75; }
+.scene-controls { position: absolute; z-index: 25; top: clamp(90px, 11vh, 124px); left: 50%; display: flex; align-items: center; gap: 4px; padding: 5px; border: 1px solid rgba(241, 216, 143, 0.22); background: rgba(5, 15, 20, 0.58); box-shadow: 0 14px 36px rgba(1, 5, 8, 0.3), inset 0 1px rgba(255,255,255,0.06); backdrop-filter: blur(12px); transform: translateX(-50%); }
+.scene-control { display: grid; width: 34px; height: 34px; padding: 0; place-items: center; border: 1px solid rgba(241, 216, 143, 0.18); background: rgba(241, 216, 143, 0.04); color: var(--gold-soft); font-size: 18px; font-weight: 300; line-height: 1; transition: background 180ms ease, border-color 180ms ease, color 180ms ease; }
+.scene-control:hover, .scene-control:focus-visible { border-color: rgba(241, 216, 143, 0.52); background: rgba(241, 216, 143, 0.14); color: #fff6dc; }
+.scene-control:focus-visible { outline: 1px solid var(--gold-soft); outline-offset: 3px; }
+.scene-control:disabled { cursor: default; opacity: 0.28; }
+.scene-zoom-level { display: grid; min-width: 48px; height: 34px; place-items: center; color: var(--ink); font-size: 9px; font-weight: 700; letter-spacing: 0.12em; }
 
 .focus-card { position: absolute; z-index: 30; top: 50%; right: clamp(22px, 8vw, 122px); width: min(385px, 36vw); padding: clamp(26px, 3vw, 48px) clamp(24px, 3.6vw, 55px) clamp(24px, 2.7vw, 42px); border: 1px solid rgba(241, 216, 143, 0.3); background: linear-gradient(145deg, rgba(11, 26, 34, 0.82), rgba(4, 12, 18, 0.65)); box-shadow: 0 28px 70px rgba(1, 5, 8, 0.35), inset 0 1px rgba(255,255,255,0.08); backdrop-filter: blur(17px); opacity: 0; pointer-events: none; transform: translate3d(40px, -45%, 0); transition: opacity 650ms var(--ease), transform 800ms var(--ease); }
 .focus-card[aria-hidden='false'] { opacity: 1; pointer-events: auto; transform: translate3d(0, -50%, 0); }
@@ -241,13 +247,12 @@ a { text-decoration: none; }
 
 .reduced-motion *, .reduced-motion *::before, .reduced-motion *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 120ms !important; }
 .reduced-motion .scene-art { transform: none !important; }
-.reduced-motion .legends { transform: none !important; }
+.reduced-motion .legends { transform: translate3d(var(--scene-pan-x, 0px), 0, 0) scale(var(--scene-zoom, 1)) !important; }
 
 @media (max-width: 900px) {
   .intro-copy { top: 17vh; left: 6vw; width: 285px; }
   .intro-copy h1 { font-size: clamp(42px, 7vw, 68px); }
   .header-status { display: none; }
-  .legend { min-width: 118px; }
   .legend__figure { max-height: 57vh; }
   .focus-card { right: 5vw; width: min(400px, 48vw); }
   .scene-guide { right: 5vw; }
@@ -263,15 +268,20 @@ a { text-decoration: none; }
   .intro-copy { top: 99px; left: 23px; width: 245px; }
   .intro-copy h1 { font-size: clamp(43px, 14vw, 63px); }
   .intro-description { margin-top: 18px; font-size: 11px; line-height: 1.6; }
-  .scene-stage { inset: 25% 0 15%; transform: scale(1.04); transform-origin: center bottom; }
-  .legend { min-width: 0; }
+  .scene-stage { inset: 25% 0 15%; overflow: visible; transform: scale(1.04); transform-origin: center bottom; }
   .legend__figure { max-height: 48vh; }
   .legend__label { bottom: -14px; font-size: 7px; letter-spacing: 0.12em; }
-  .legend[data-character-id='zoro'] { left: 1%; bottom: 8%; width: 25%; }
-  .legend[data-character-id='naruto'] { left: 25%; bottom: 5%; width: 25%; }
-  .legend[data-character-id='luffy'] { left: 50%; bottom: 5%; width: 25%; }
-  .legend[data-character-id='bell'] { left: 75%; bottom: 8%; width: 24%; }
-  .scene-guide { right: 22px; bottom: 111px; max-width: 150px; font-size: 8px; }
+  .legend[data-character-id='sung-jinwoo'] { left: 1%; bottom: 48%; width: 20%; }
+  .legend[data-character-id='arthur-leywin'] { left: 30%; bottom: 47%; width: 20%; }
+  .legend[data-character-id='rimuru-tempest'] { left: 62%; bottom: 47%; width: 18%; }
+  .legend[data-character-id='zoro'] { left: 0%; bottom: 8%; width: 15%; }
+  .legend[data-character-id='naruto'] { left: 15%; bottom: 5%; width: 15%; }
+  .legend[data-character-id='might-guy'] { left: 30%; bottom: 8%; width: 15%; }
+  .legend[data-character-id='luffy'] { left: 45%; bottom: 5%; width: 15%; }
+  .legend[data-character-id='mereoleona'] { left: 60%; bottom: 8%; width: 15%; }
+  .legend[data-character-id='bell'] { top: 5%; right: auto; bottom: auto; left: 55%; width: 16%; z-index: 10; }
+  .scene-controls { top: auto; bottom: -40px; }
+  .scene-guide { display: none; }
   .bottom-bar { right: 21px; bottom: 25px; left: 21px; }
   .bottom-note { font-size: 7px; line-height: 1.35; }
   .bottom-note__seal { font-size: 13px; }
