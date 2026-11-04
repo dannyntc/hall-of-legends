@@ -204,6 +204,7 @@ a { text-decoration: none; }
 .scene-control:focus-visible { outline: 1px solid var(--gold-soft); outline-offset: 3px; }
 .scene-control:disabled { cursor: default; opacity: 0.28; }
 .scene-zoom-level { display: grid; min-width: 48px; height: 34px; place-items: center; color: var(--ink); font-size: 9px; font-weight: 700; letter-spacing: 0.12em; }
+.scene-control-hint { margin-left: 8px; color: var(--subtle); font-size: 8px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap; }
 
 .focus-card { position: absolute; z-index: 30; top: 50%; right: clamp(22px, 8vw, 122px); width: min(385px, 36vw); padding: clamp(26px, 3vw, 48px) clamp(24px, 3.6vw, 55px) clamp(24px, 2.7vw, 42px); border: 1px solid rgba(241, 216, 143, 0.3); background: linear-gradient(145deg, rgba(11, 26, 34, 0.82), rgba(4, 12, 18, 0.65)); box-shadow: 0 28px 70px rgba(1, 5, 8, 0.35), inset 0 1px rgba(255,255,255,0.08); backdrop-filter: blur(17px); opacity: 0; pointer-events: none; transform: translate3d(40px, -45%, 0); transition: opacity 650ms var(--ease), transform 800ms var(--ease); }
 .focus-card[aria-hidden='false'] { opacity: 1; pointer-events: auto; transform: translate3d(0, -50%, 0); }
@@ -281,6 +282,7 @@ a { text-decoration: none; }
   .legend[data-character-id='mereoleona'] { left: 60%; bottom: 8%; width: 15%; }
   .legend[data-character-id='bell'] { top: 5%; right: auto; bottom: auto; left: 55%; width: 16%; z-index: 10; }
   .scene-controls { top: auto; bottom: -40px; }
+  .scene-control-hint { display: none; }
   .scene-guide { display: none; }
   .bottom-bar { right: 21px; bottom: 25px; left: 21px; }
   .bottom-note { font-size: 7px; line-height: 1.35; }

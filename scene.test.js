@@ -61,6 +61,7 @@ test('the experience keeps character selection in the tableau instead of numeric
 
   assert.doesNotMatch(indexHtml, /data-legend-rail/);
   assert.doesNotMatch(indexHtml, /select by key/);
+  assert.match(indexHtml, /data-pan-hint/);
   assert.doesNotMatch(appSource, /Digit\(\[1-4\]\)/);
 });
 
@@ -68,6 +69,25 @@ test('scene and app scripts initialize together as classic browser scripts', asy
   const sceneSource = await readFile(new URL('./scene.js', import.meta.url), 'utf8');
   const appSource = await readFile(new URL('./app.js', import.meta.url), 'utf8');
   const listeners = new Map();
+  const stageListeners = new Map();
+  const frameCallbacks = new Map();
+  let nextFrameId = 0;
+
+  const requestAnimationFrame = (handler) => {
+    const id = ++nextFrameId;
+    frameCallbacks.set(id, handler);
+    return id;
+  };
+  const cancelAnimationFrame = (id) => frameCallbacks.delete(id);
+  const runNextFrame = (timestamp) => {
+    const next = frameCallbacks.entries().next().value;
+    if (!next) return false;
+    const [id, handler] = next;
+    frameCallbacks.delete(id);
+    handler(timestamp);
+    return true;
+  };
+  const readPan = () => Number.parseFloat(legends.style.values['--scene-pan-x']);
   const createControl = () => {
     const controlListeners = new Map();
     return {
@@ -85,9 +105,14 @@ test('scene and app scripts initialize together as classic browser scripts', asy
     set innerHTML(value) { this.html = value; },
     querySelector() { return null; },
   };
+  const stage = {
+    clientWidth: 1000,
+    addEventListener(type, handler) { stageListeners.set(type, handler); },
+    getBoundingClientRect() { return { left: 0, right: 1000, top: 0, bottom: 700, width: 1000, height: 700 }; },
+  };
   const elements = new Map([
     ['.sanctuary', { classList: { add() {}, remove() {}, contains() { return false; } }, dataset: {}, style: { setProperty() {} } }],
-    ['[data-stage]', { clientWidth: 1000, addEventListener() {}, getBoundingClientRect() { return { left: 0, right: 1000, top: 0, bottom: 700, width: 1000, height: 700 }; } }],
+    ['[data-stage]', stage],
     ['[data-legends]', legends],
     ['[data-focus-card]', { setAttribute() {}, inert: true }],
     ['[data-focus-name]', {}],
@@ -97,7 +122,7 @@ test('scene and app scripts initialize together as classic browser scripts', asy
     ['[data-focus-source]', { tabIndex: -1 }],
     ['[data-clear-focus]', { tabIndex: -1, focus() {}, addEventListener() {} }],
     ['[data-status]', {}],
-    ['[data-motion-toggle]', { setAttribute() {}, addEventListener() {} }],
+    ['[data-motion-toggle]', createControl()],
     ['[data-skip-intro]', { hidden: false, addEventListener() {} }],
     ['[data-zoom-in]', createControl()],
     ['[data-zoom-out]', createControl()],
@@ -120,6 +145,8 @@ test('scene and app scripts initialize together as classic browser scripts', asy
     matchMedia() { return { matches: false }; },
     setTimeout() { return 1; },
     clearTimeout() {},
+    requestAnimationFrame,
+    cancelAnimationFrame,
     window: null,
   });
   browserContext.window = browserContext;
@@ -140,5 +167,44 @@ test('scene and app scripts initialize together as classic browser scripts', asy
   elements.get('[data-reset-view]').click();
   assert.equal(legends.style.values['--scene-zoom'], '1');
   assert.equal(legends.style.values['--scene-pan-x'], '0px');
+
+  elements.get('[data-zoom-in]').click();
+  const moveStage = stageListeners.get('pointermove');
+  const movePointer = (clientX, pointerType = 'mouse') => moveStage({
+    clientX,
+    clientY: 350,
+    pointerId: 1,
+    pointerType,
+    target: stage,
+    preventDefault() {},
+  });
+
+  movePointer(40);
+  assert.equal(frameCallbacks.size, 1);
+  assert.equal(runNextFrame(16), true);
+  const firstLeftPan = readPan();
+  assert.ok(firstLeftPan < 0);
+  assert.equal(runNextFrame(32), true);
+  assert.ok(readPan() < firstLeftPan);
+
+  movePointer(500);
+  assert.equal(frameCallbacks.size, 0);
+  const stoppedPan = readPan();
+  assert.equal(runNextFrame(48), false);
+  assert.equal(readPan(), stoppedPan);
+
+  elements.get('[data-reset-view]').click();
+  elements.get('[data-zoom-in]').click();
+  movePointer(960);
+  assert.equal(runNextFrame(16), true);
+  assert.ok(readPan() > 0);
+
+  for (let frame = 0; frame < 100; frame += 1) runNextFrame(32 + frame * 16);
+  assert.ok(readPan() <= 1000 * 0.2 * 0.46);
+
+  elements.get('[data-reset-view]').click();
+  elements.get('[data-zoom-in]').click();
+  movePointer(40, 'touch');
+  assert.equal(frameCallbacks.size, 0);
 });
 

@@ -27,11 +27,16 @@ let reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matche
 let sceneZoom = 1;
 let scenePanX = 0;
 let panGesture = null;
+let edgePanDirection = 0;
+let edgePanFrame = 0;
+let edgePanLastTime = null;
 
 const MIN_SCENE_ZOOM = 1;
 const MAX_SCENE_ZOOM = 2.4;
 const SCENE_ZOOM_STEP = 0.2;
 const SCENE_PAN_STEP = 160;
+const EDGE_PAN_ZONE = 0.1;
+const EDGE_PAN_SPEED = 0.45;
 
 function renderRoster() {
   legends.innerHTML = characterRoster.map((character, index) => `
@@ -117,6 +122,7 @@ function setScenePan(nextPan) {
 }
 
 function resetSceneView() {
+  stopEdgePan();
   sceneZoom = MIN_SCENE_ZOOM;
   scenePanX = 0;
   applySceneView();
@@ -180,6 +186,7 @@ function clearSelection({ restoreFocus = true } = {}) {
 
 function setReducedMotion(value) {
   reducedMotion = value;
+  if (value) stopEdgePan();
   document.body.classList.toggle('reduced-motion', value);
   motionToggle.setAttribute('aria-pressed', String(value));
   motionToggle.setAttribute('aria-label', value ? 'Disable reduced motion' : 'Enable reduced motion');
@@ -215,11 +222,75 @@ function resetParallax() {
   sanctuary.style.setProperty('--parallax-y', '0px');
 }
 
+function stopEdgePan() {
+  edgePanDirection = 0;
+  edgePanLastTime = null;
+  if (edgePanFrame) {
+    window.cancelAnimationFrame(edgePanFrame);
+    edgePanFrame = 0;
+  }
+}
+
+function getEdgePanDirection(clientX) {
+  const stageRect = stage.getBoundingClientRect();
+  const edgeWidth = stageRect.width * EDGE_PAN_ZONE;
+  if (clientX <= stageRect.left + edgeWidth) return -1;
+  if (clientX >= stageRect.right - edgeWidth) return 1;
+  return 0;
+}
+
+function runEdgePan(timestamp) {
+  edgePanFrame = 0;
+  if (!edgePanDirection || sceneZoom === MIN_SCENE_ZOOM || reducedMotion || sanctuary.classList.contains('is-focused')) {
+    stopEdgePan();
+    return;
+  }
+
+  const elapsed = edgePanLastTime === null
+    ? 16
+    : Math.min(64, Math.max(0, timestamp - edgePanLastTime));
+  edgePanLastTime = timestamp;
+  setScenePan(scenePanX + edgePanDirection * elapsed * EDGE_PAN_SPEED);
+
+  const panLimit = getMaxScenePan();
+  if (Math.abs(scenePanX) >= panLimit) {
+    stopEdgePan();
+    return;
+  }
+  edgePanFrame = window.requestAnimationFrame(runEdgePan);
+}
+
+function updateEdgePan(event) {
+  if (
+    (event.pointerType && event.pointerType !== 'mouse')
+    || panGesture
+    || isStageInteractiveTarget(event.target)
+    || sceneZoom === MIN_SCENE_ZOOM
+    || reducedMotion
+    || sanctuary.classList.contains('is-focused')
+  ) {
+    stopEdgePan();
+    return;
+  }
+
+  const nextDirection = getEdgePanDirection(event.clientX);
+  if (!nextDirection) {
+    stopEdgePan();
+    return;
+  }
+  if (nextDirection === edgePanDirection && edgePanFrame) return;
+
+  stopEdgePan();
+  edgePanDirection = nextDirection;
+  edgePanFrame = window.requestAnimationFrame(runEdgePan);
+}
+
 function isStageInteractiveTarget(target) {
   return Boolean(target?.closest?.('button, a, [data-focus-card]'));
 }
 
 function beginPan(event) {
+  stopEdgePan();
   if (sceneZoom === MIN_SCENE_ZOOM || isStageInteractiveTarget(event.target)) return;
 
   panGesture = {
@@ -232,10 +303,12 @@ function beginPan(event) {
 
 function movePanOrApplyParallax(event) {
   if (!panGesture) {
+    updateEdgePan(event);
     applyParallax(event);
     return;
   }
 
+  stopEdgePan();
   const delta = event.clientX - panGesture.startX;
   if (Math.abs(delta) > 4) {
     event.preventDefault?.();
@@ -244,6 +317,7 @@ function movePanOrApplyParallax(event) {
 }
 
 function endPan(event) {
+  stopEdgePan();
   if (!panGesture) return;
   if (stage.hasPointerCapture?.(event.pointerId)) stage.releasePointerCapture(event.pointerId);
   panGesture = null;
@@ -271,8 +345,12 @@ stage.addEventListener('pointerdown', beginPan);
 stage.addEventListener('pointermove', movePanOrApplyParallax, { passive: false });
 stage.addEventListener('pointerup', endPan);
 stage.addEventListener('pointercancel', endPan);
-stage.addEventListener('pointerleave', () => { if (!panGesture) resetParallax(); });
+stage.addEventListener('pointerleave', () => {
+  stopEdgePan();
+  if (!panGesture) resetParallax();
+});
 window.addEventListener?.('resize', applySceneView);
+window.addEventListener?.('blur', stopEdgePan);
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && selectedId) {
