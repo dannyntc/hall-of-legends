@@ -51,3 +51,46 @@ test('the experience keeps character selection in the tableau instead of numeric
   assert.doesNotMatch(appSource, /Digit\(\[1-4\]\)/);
 });
 
+test('scene and app scripts initialize together as classic browser scripts', async () => {
+  const sceneSource = await readFile(new URL('./scene.js', import.meta.url), 'utf8');
+  const appSource = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const listeners = new Map();
+  const elements = new Map([
+    ['.sanctuary', { classList: { add() {}, remove() {}, contains() { return false; } }, dataset: {}, style: { setProperty() {} } }],
+    ['[data-stage]', { addEventListener() {} }],
+    ['[data-legends]', { set innerHTML(value) { this.html = value; }, querySelector() { return null; } }],
+    ['[data-focus-card]', { setAttribute() {}, inert: true }],
+    ['[data-focus-name]', {}],
+    ['[data-focus-series]', {}],
+    ['[data-focus-quote]', {}],
+    ['[data-focus-attribution]', {}],
+    ['[data-focus-source]', { tabIndex: -1 }],
+    ['[data-clear-focus]', { tabIndex: -1, focus() {}, addEventListener() {} }],
+    ['[data-status]', {}],
+    ['[data-motion-toggle]', { setAttribute() {}, addEventListener() {} }],
+    ['[data-skip-intro]', { hidden: false, addEventListener() {} }],
+  ]);
+
+  const browserContext = vm.createContext({
+    document: {
+      body: { classList: { add() {}, remove() {}, toggle() {} } },
+      activeElement: null,
+      querySelector(selector) { return elements.get(selector); },
+      querySelectorAll() { return []; },
+      addEventListener(type, handler) { listeners.set(type, handler); },
+    },
+    globalThis: {},
+    localStorage: { getItem() { return null; }, setItem() {} },
+    matchMedia() { return { matches: false }; },
+    setTimeout() { return 1; },
+    clearTimeout() {},
+    window: null,
+  });
+  browserContext.window = browserContext;
+
+  vm.runInContext(sceneSource, browserContext);
+  assert.doesNotThrow(() => vm.runInContext(appSource, browserContext));
+  assert.match(elements.get('[data-legends]').html, /data-character-id="zoro"/);
+  assert.ok(listeners.has('keydown'));
+});
+

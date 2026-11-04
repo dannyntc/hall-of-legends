@@ -1,3 +1,4 @@
+(() => {
 const characterRoster = [
   {
     id: 'zoro',
@@ -82,3 +83,4 @@ globalThis.HallOfLegendsScene = Object.freeze({
   getCharacterById,
   getFocusLabel,
 });
+})();
