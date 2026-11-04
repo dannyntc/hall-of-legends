@@ -1,0 +1,11 @@
+{
+  "name": "hall-of-legends",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test scene.test.js",
+    "check": "node --check scene.js && node --check app.js && npm test",
+    "build": "node build.mjs"
+  }
+}
