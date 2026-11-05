@@ -62,6 +62,7 @@ test('the experience keeps character selection in the tableau instead of numeric
   assert.doesNotMatch(indexHtml, /data-legend-rail/);
   assert.doesNotMatch(indexHtml, /select by key/);
   assert.match(indexHtml, /data-pan-hint/);
+  assert.doesNotMatch(indexHtml, /data-pan-left|data-pan-right/);
   assert.doesNotMatch(appSource, /Digit\(\[1-4\]\)/);
 });
 
@@ -69,6 +70,7 @@ test('scene and app scripts initialize together as classic browser scripts', asy
   const sceneSource = await readFile(new URL('./scene.js', import.meta.url), 'utf8');
   const appSource = await readFile(new URL('./app.js', import.meta.url), 'utf8');
   const listeners = new Map();
+  const sanctuaryListeners = new Map();
   const stageListeners = new Map();
   const frameCallbacks = new Map();
   let nextFrameId = 0;
@@ -105,13 +107,19 @@ test('scene and app scripts initialize together as classic browser scripts', asy
     set innerHTML(value) { this.html = value; },
     querySelector() { return null; },
   };
+  const sanctuary = {
+    classList: { add() {}, remove() {}, contains() { return false; } },
+    dataset: {},
+    style: { setProperty() {} },
+    addEventListener(type, handler) { sanctuaryListeners.set(type, handler); },
+  };
   const stage = {
     clientWidth: 1000,
     addEventListener(type, handler) { stageListeners.set(type, handler); },
     getBoundingClientRect() { return { left: 0, right: 1000, top: 0, bottom: 700, width: 1000, height: 700 }; },
   };
   const elements = new Map([
-    ['.sanctuary', { classList: { add() {}, remove() {}, contains() { return false; } }, dataset: {}, style: { setProperty() {} } }],
+    ['.sanctuary', sanctuary],
     ['[data-stage]', stage],
     ['[data-legends]', legends],
     ['[data-focus-card]', { setAttribute() {}, inert: true }],
@@ -126,8 +134,6 @@ test('scene and app scripts initialize together as classic browser scripts', asy
     ['[data-skip-intro]', { hidden: false, addEventListener() {} }],
     ['[data-zoom-in]', createControl()],
     ['[data-zoom-out]', createControl()],
-    ['[data-pan-left]', createControl()],
-    ['[data-pan-right]', createControl()],
     ['[data-reset-view]', createControl()],
     ['[data-zoom-level]', createControl()],
   ]);
@@ -161,16 +167,13 @@ test('scene and app scripts initialize together as classic browser scripts', asy
   assert.equal(legends.style.values['--scene-zoom'], '1.2');
   assert.equal(elements.get('[data-zoom-level]').textContent, '120%');
 
-  elements.get('[data-pan-right]').click();
-  assert.ok(readPan() < 0);
-
   elements.get('[data-reset-view]').click();
   assert.equal(legends.style.values['--scene-zoom'], '1');
   assert.equal(legends.style.values['--scene-pan-x'], '0px');
 
   elements.get('[data-zoom-in]').click();
-  const moveStage = stageListeners.get('pointermove');
-  const movePointer = (clientX, pointerType = 'mouse', target = stage) => moveStage({
+  const moveSanctuary = sanctuaryListeners.get('pointermove');
+  const movePointer = (clientX, pointerType = 'mouse', target = stage) => moveSanctuary({
     clientX,
     clientY: 350,
     pointerId: 1,
@@ -179,15 +182,13 @@ test('scene and app scripts initialize together as classic browser scripts', asy
     preventDefault() {},
   });
 
-  const legendTarget = {
+  const headerTarget = {
     closest(selector) {
-      return selector === '.legend' || selector === 'button, a, [data-focus-card]'
-        ? this
-        : null;
+      return selector === 'button, a, [data-focus-card]' ? this : null;
     },
   };
 
-  movePointer(40, 'mouse', legendTarget);
+  movePointer(40, 'mouse', headerTarget);
   assert.equal(frameCallbacks.size, 1);
   assert.equal(runNextFrame(16), true);
   const firstLeftPan = readPan();

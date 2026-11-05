@@ -13,12 +13,10 @@ const focusClose = document.querySelector('[data-clear-focus]');
 const status = document.querySelector('[data-status]');
 const motionToggle = document.querySelector('[data-motion-toggle]');
 const skipIntro = document.querySelector('[data-skip-intro]');
-const panLeft = document.querySelector('[data-pan-left]');
 const zoomOut = document.querySelector('[data-zoom-out]');
 const zoomLevel = document.querySelector('[data-zoom-level]');
 const zoomIn = document.querySelector('[data-zoom-in]');
 const resetView = document.querySelector('[data-reset-view]');
-const panRight = document.querySelector('[data-pan-right]');
 
 let selectedId = null;
 let previousFocusedId = null;
@@ -105,8 +103,6 @@ function applySceneView() {
   zoomLevel.setAttribute('aria-valuenow', String(Math.round(sceneZoom * 100)));
   zoomIn.disabled = sceneZoom >= MAX_SCENE_ZOOM;
   zoomOut.disabled = sceneZoom <= MIN_SCENE_ZOOM;
-  panLeft.disabled = scenePanX <= -getMaxScenePan();
-  panRight.disabled = scenePanX >= getMaxScenePan();
   resetView.disabled = sceneZoom === MIN_SCENE_ZOOM && scenePanX === 0;
 }
 
@@ -264,7 +260,7 @@ function updateEdgePan(event) {
   if (
     (event.pointerType && event.pointerType !== 'mouse')
     || panGesture
-    || isStageInteractiveTarget(event.target)
+    || isEdgePanPausedTarget(event.target)
     || sceneZoom === MIN_SCENE_ZOOM
     || reducedMotion
     || sanctuary.classList.contains('is-focused')
@@ -290,6 +286,10 @@ function isStageInteractiveTarget(target) {
     target?.closest?.('button, a, [data-focus-card]')
     && !target?.closest?.('.legend'),
   );
+}
+
+function isEdgePanPausedTarget(target) {
+  return Boolean(target?.closest?.('.scene-controls, [data-focus-card]'));
 }
 
 function beginPan(event) {
@@ -339,16 +339,14 @@ setReducedMotion(reducedMotion);
 skipIntro.addEventListener('click', finishIntro);
 focusClose.addEventListener('click', () => clearSelection());
 motionToggle.addEventListener('click', () => setReducedMotion(!reducedMotion));
-panLeft.addEventListener('click', () => setScenePan(scenePanX + SCENE_PAN_STEP));
 zoomOut.addEventListener('click', () => setSceneZoom(sceneZoom - SCENE_ZOOM_STEP));
 zoomIn.addEventListener('click', () => setSceneZoom(sceneZoom + SCENE_ZOOM_STEP));
 resetView.addEventListener('click', resetSceneView);
-panRight.addEventListener('click', () => setScenePan(scenePanX - SCENE_PAN_STEP));
 stage.addEventListener('pointerdown', beginPan);
-stage.addEventListener('pointermove', movePanOrApplyParallax, { passive: false });
+sanctuary.addEventListener('pointermove', movePanOrApplyParallax, { passive: false });
 stage.addEventListener('pointerup', endPan);
 stage.addEventListener('pointercancel', endPan);
-stage.addEventListener('pointerleave', () => {
+sanctuary.addEventListener('pointerleave', () => {
   stopEdgePan();
   if (!panGesture) resetParallax();
 });
