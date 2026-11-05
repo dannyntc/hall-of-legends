@@ -24,6 +24,7 @@ let introTimer;
 let reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let sceneZoom = 1;
 let scenePanX = 0;
+let scenePanY = 0;
 let panGesture = null;
 let suppressedCharacterClick = null;
 
@@ -88,37 +89,45 @@ function announce(message) {
   status.textContent = message;
 }
 
-function getMaxScenePan() {
-  const stageWidth = stage.clientWidth || window.innerWidth;
-  return stageWidth * (BASE_SCENE_PAN + (sceneZoom - 1) * ZOOM_SCENE_PAN);
+function getMaxScenePan(axis = 'x') {
+  const dimension = axis === 'y'
+    ? (stage.clientHeight || window.innerHeight)
+    : (stage.clientWidth || window.innerWidth);
+  return dimension * (BASE_SCENE_PAN + (sceneZoom - 1) * ZOOM_SCENE_PAN);
 }
 
-function clampScenePan(value) {
-  const limit = getMaxScenePan();
+function clampScenePan(value, axis = 'x') {
+  const limit = getMaxScenePan(axis);
   return Math.min(limit, Math.max(-limit, value));
 }
 
 function applySceneView() {
-  scenePanX = clampScenePan(scenePanX);
+  scenePanX = clampScenePan(scenePanX, 'x');
+  scenePanY = clampScenePan(scenePanY, 'y');
   legends.style.setProperty('--scene-zoom', String(sceneZoom));
   legends.style.setProperty('--scene-pan-x', `${Math.round(scenePanX)}px`);
+  legends.style.setProperty('--scene-pan-y', `${Math.round(scenePanY)}px`);
   zoomLevel.textContent = `${Math.round(sceneZoom * 100)}%`;
   zoomLevel.setAttribute('aria-valuemin', String(MIN_SCENE_ZOOM * 100));
   zoomLevel.setAttribute('aria-valuemax', String(MAX_SCENE_ZOOM * 100));
   zoomLevel.setAttribute('aria-valuenow', String(Math.round(sceneZoom * 100)));
   zoomIn.disabled = sceneZoom >= MAX_SCENE_ZOOM;
   zoomOut.disabled = sceneZoom <= MIN_SCENE_ZOOM;
-  resetView.disabled = sceneZoom === MIN_SCENE_ZOOM && scenePanX === 0;
+  resetView.disabled = sceneZoom === MIN_SCENE_ZOOM && scenePanX === 0 && scenePanY === 0;
 }
 
 function setSceneZoom(nextZoom) {
   sceneZoom = Math.min(MAX_SCENE_ZOOM, Math.max(MIN_SCENE_ZOOM, nextZoom));
-  if (sceneZoom === MIN_SCENE_ZOOM) scenePanX = 0;
+  if (sceneZoom === MIN_SCENE_ZOOM) {
+    scenePanX = 0;
+    scenePanY = 0;
+  }
   applySceneView();
 }
 
-function setScenePan(nextPan) {
-  scenePanX = clampScenePan(nextPan);
+function setScenePan(nextPanX, nextPanY = scenePanY) {
+  scenePanX = clampScenePan(nextPanX, 'x');
+  scenePanY = clampScenePan(nextPanY, 'y');
   applySceneView();
 }
 
@@ -126,6 +135,7 @@ function resetSceneView() {
   cancelPan();
   sceneZoom = MIN_SCENE_ZOOM;
   scenePanX = 0;
+  scenePanY = 0;
   applySceneView();
   resetParallax();
 }
@@ -240,7 +250,9 @@ function beginPan(event) {
   panGesture = {
     pointerId: event.pointerId,
     startX: event.clientX,
+    startY: event.clientY,
     originX: scenePanX,
+    originY: scenePanY,
     characterButton: event.target?.closest?.('[data-character-id]') || null,
     moved: false,
   };
@@ -254,12 +266,13 @@ function movePanOrApplyParallax(event) {
     return;
   }
 
-  const delta = event.clientX - panGesture.startX;
-  if (Math.abs(delta) > PAN_DRAG_THRESHOLD) {
+  const deltaX = event.clientX - panGesture.startX;
+  const deltaY = event.clientY - panGesture.startY;
+  if (Math.hypot(deltaX, deltaY) > PAN_DRAG_THRESHOLD) {
     panGesture.moved = true;
     suppressedCharacterClick = panGesture.characterButton;
     event.preventDefault?.();
-    setScenePan(panGesture.originX + delta);
+    setScenePan(panGesture.originX + deltaX, panGesture.originY + deltaY);
   }
 }
 
@@ -320,10 +333,10 @@ document.addEventListener('keydown', (event) => {
     resetSceneView();
   } else if (event.key === 'ArrowLeft') {
     event.preventDefault();
-    setScenePan(scenePanX + SCENE_PAN_STEP);
+    setScenePan(scenePanX + SCENE_PAN_STEP, scenePanY);
   } else if (event.key === 'ArrowRight') {
     event.preventDefault();
-    setScenePan(scenePanX - SCENE_PAN_STEP);
+    setScenePan(scenePanX - SCENE_PAN_STEP, scenePanY);
   }
 });
 

@@ -72,6 +72,7 @@ test('scene and app scripts initialize together as classic browser scripts', asy
   const listeners = new Map();
   const sanctuaryListeners = new Map();
   const readPan = () => Number.parseFloat(legends.style.values['--scene-pan-x']);
+  const readPanY = () => Number.parseFloat(legends.style.values['--scene-pan-y']);
   const createControl = () => {
     const controlListeners = new Map();
     return {
@@ -105,6 +106,7 @@ test('scene and app scripts initialize together as classic browser scripts', asy
   };
   const stage = {
     clientWidth: 1000,
+    clientHeight: 700,
     getBoundingClientRect() { return { left: 0, right: 1000, top: 0, bottom: 700, width: 1000, height: 700 }; },
   };
   const elements = new Map([
@@ -161,9 +163,9 @@ test('scene and app scripts initialize together as classic browser scripts', asy
   const pointerDown = sanctuaryListeners.get('pointerdown');
   const pointerMove = sanctuaryListeners.get('pointermove');
   const pointerUp = sanctuaryListeners.get('pointerup');
-  const movePointer = (clientX, pointerType = 'mouse', target = stage) => pointerMove({
+  const movePointer = (clientX, clientY = 350, pointerType = 'mouse', target = stage) => pointerMove({
     clientX,
-    clientY: 350,
+    clientY,
     pointerId: 1,
     pointerType,
     target,
@@ -185,16 +187,34 @@ test('scene and app scripts initialize together as classic browser scripts', asy
   pointerUp({ pointerId: 1 });
 
   elements.get('[data-reset-view]').click();
+  pointerDown({ clientX: 500, clientY: 350, pointerId: 1, pointerType: 'mouse', button: 0, target: stage });
+  movePointer(500, 250);
+  assert.equal(readPan(), 0);
+  assert.ok(readPanY() < 0);
+  pointerUp({ pointerId: 1 });
+
+  elements.get('[data-reset-view]').click();
+  pointerDown({ clientX: 500, clientY: 350, pointerId: 1, pointerType: 'mouse', button: 0, target: stage });
+  movePointer(600, 450);
+  assert.ok(readPan() > 0);
+  assert.ok(readPanY() > 0);
+  pointerUp({ pointerId: 1 });
+
+  elements.get('[data-reset-view]').click();
+  assert.equal(readPan(), 0);
+  assert.equal(readPanY(), 0);
   elements.get('[data-zoom-in]').click();
   pointerDown({ clientX: 500, clientY: 350, pointerId: 1, pointerType: 'mouse', button: 0, target: stage });
-  movePointer(2000);
+  movePointer(2000, -2000);
   assert.equal(readPan(), 1000 * (0.08 + 0.2 * 0.46));
+  assert.equal(readPanY(), Math.round(-700 * (0.08 + 0.2 * 0.46)));
   pointerUp({ pointerId: 1 });
 
   elements.get('[data-reset-view]').click();
   pointerDown({ clientX: 500, clientY: 350, pointerId: 1, pointerType: 'touch', button: 0, target: stage });
   movePointer(200);
   assert.equal(readPan(), 0);
+  assert.equal(readPanY(), 0);
   pointerUp({ pointerId: 1 });
 });
 

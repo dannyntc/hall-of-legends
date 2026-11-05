@@ -180,7 +180,7 @@ a { text-decoration: none; }
 .axis-light { opacity: 0.45; background: radial-gradient(ellipse at 50% 78%, rgba(246, 204, 115, 0.26), transparent 22%); transition: opacity 700ms var(--ease); }
 .central-steps { inset: auto 0 0; height: 30%; z-index: -1; background: linear-gradient(180deg, transparent, rgba(4, 9, 12, 0.24) 35%, rgba(4, 9, 12, 0.52)); }
 
-.legends { position: absolute; inset: 0; transform: translate3d(calc(var(--scene-pan-x, 0px) + var(--parallax-x, 0px)), var(--parallax-y, 0px), 0) scale(var(--scene-zoom, 1)); transform-origin: center bottom; transition: transform 1.4s var(--ease); will-change: transform; }
+.legends { position: absolute; inset: 0; transform: translate3d(calc(var(--scene-pan-x, 0px) + var(--parallax-x, 0px)), calc(var(--scene-pan-y, 0px) + var(--parallax-y, 0px)), 0) scale(var(--scene-zoom, 1)); transform-origin: center bottom; transition: transform 1.4s var(--ease); will-change: transform; }
 .legend { position: absolute; bottom: var(--bottom); left: var(--left); z-index: var(--z); width: var(--size); min-width: 0; padding: 0; border: 0; background: none; transform: translateZ(0); transform-origin: bottom center; transition: opacity 850ms var(--ease), filter 850ms var(--ease), transform 850ms var(--ease); }
 .legend::before { content: ''; position: absolute; z-index: -1; right: 12%; bottom: 1%; left: 12%; height: 25%; border-radius: 50%; background: var(--aura); filter: blur(25px); opacity: 0.36; transform: scale(0.8, 0.22); transition: opacity 700ms var(--ease), transform 700ms var(--ease); }
 .legend__figure { display: block; width: 100%; height: auto; max-height: 68vh; object-fit: contain; object-position: bottom center; filter: drop-shadow(0 22px 14px rgba(1, 5, 8, 0.64)) drop-shadow(0 0 14px color-mix(in srgb, var(--aura) 34%, transparent)); transition: filter 700ms var(--ease), transform 700ms var(--ease); }
@@ -252,7 +252,7 @@ a { text-decoration: none; }
 
 .reduced-motion *, .reduced-motion *::before, .reduced-motion *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 120ms !important; }
 .reduced-motion .scene-art { transform: none !important; }
-.reduced-motion .legends { transform: translate3d(var(--scene-pan-x, 0px), 0, 0) scale(var(--scene-zoom, 1)) !important; }
+.reduced-motion .legends { transform: translate3d(var(--scene-pan-x, 0px), var(--scene-pan-y, 0px), 0) scale(var(--scene-zoom, 1)) !important; }
 
 @media (max-width: 900px) {
   .intro-copy { top: 17vh; left: 6vw; width: 285px; }
