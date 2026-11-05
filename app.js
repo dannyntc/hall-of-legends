@@ -234,8 +234,8 @@ function stopEdgePan() {
 function getEdgePanDirection(clientX) {
   const stageRect = stage.getBoundingClientRect();
   const edgeWidth = stageRect.width * EDGE_PAN_ZONE;
-  if (clientX <= stageRect.left + edgeWidth) return -1;
-  if (clientX >= stageRect.right - edgeWidth) return 1;
+  if (clientX <= stageRect.left + edgeWidth) return 1;
+  if (clientX >= stageRect.right - edgeWidth) return -1;
   return 0;
 }
 
@@ -286,7 +286,10 @@ function updateEdgePan(event) {
 }
 
 function isStageInteractiveTarget(target) {
-  return Boolean(target?.closest?.('button, a, [data-focus-card]'));
+  return Boolean(
+    target?.closest?.('button, a, [data-focus-card]')
+    && !target?.closest?.('.legend'),
+  );
 }
 
 function beginPan(event) {
@@ -336,11 +339,11 @@ setReducedMotion(reducedMotion);
 skipIntro.addEventListener('click', finishIntro);
 focusClose.addEventListener('click', () => clearSelection());
 motionToggle.addEventListener('click', () => setReducedMotion(!reducedMotion));
-panLeft.addEventListener('click', () => setScenePan(scenePanX - SCENE_PAN_STEP));
+panLeft.addEventListener('click', () => setScenePan(scenePanX + SCENE_PAN_STEP));
 zoomOut.addEventListener('click', () => setSceneZoom(sceneZoom - SCENE_ZOOM_STEP));
 zoomIn.addEventListener('click', () => setSceneZoom(sceneZoom + SCENE_ZOOM_STEP));
 resetView.addEventListener('click', resetSceneView);
-panRight.addEventListener('click', () => setScenePan(scenePanX + SCENE_PAN_STEP));
+panRight.addEventListener('click', () => setScenePan(scenePanX - SCENE_PAN_STEP));
 stage.addEventListener('pointerdown', beginPan);
 stage.addEventListener('pointermove', movePanOrApplyParallax, { passive: false });
 stage.addEventListener('pointerup', endPan);
@@ -369,10 +372,10 @@ document.addEventListener('keydown', (event) => {
     resetSceneView();
   } else if (event.key === 'ArrowLeft') {
     event.preventDefault();
-    setScenePan(scenePanX - SCENE_PAN_STEP);
+    setScenePan(scenePanX + SCENE_PAN_STEP);
   } else if (event.key === 'ArrowRight') {
     event.preventDefault();
-    setScenePan(scenePanX + SCENE_PAN_STEP);
+    setScenePan(scenePanX - SCENE_PAN_STEP);
   }
 });
 

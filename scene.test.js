@@ -162,7 +162,7 @@ test('scene and app scripts initialize together as classic browser scripts', asy
   assert.equal(elements.get('[data-zoom-level]').textContent, '120%');
 
   elements.get('[data-pan-right]').click();
-  assert.notEqual(legends.style.values['--scene-pan-x'], '0px');
+  assert.ok(readPan() < 0);
 
   elements.get('[data-reset-view]').click();
   assert.equal(legends.style.values['--scene-zoom'], '1');
@@ -170,22 +170,30 @@ test('scene and app scripts initialize together as classic browser scripts', asy
 
   elements.get('[data-zoom-in]').click();
   const moveStage = stageListeners.get('pointermove');
-  const movePointer = (clientX, pointerType = 'mouse') => moveStage({
+  const movePointer = (clientX, pointerType = 'mouse', target = stage) => moveStage({
     clientX,
     clientY: 350,
     pointerId: 1,
     pointerType,
-    target: stage,
+    target,
     preventDefault() {},
   });
 
-  movePointer(40);
+  const legendTarget = {
+    closest(selector) {
+      return selector === '.legend' || selector === 'button, a, [data-focus-card]'
+        ? this
+        : null;
+    },
+  };
+
+  movePointer(40, 'mouse', legendTarget);
   assert.equal(frameCallbacks.size, 1);
   assert.equal(runNextFrame(16), true);
   const firstLeftPan = readPan();
-  assert.ok(firstLeftPan < 0);
+  assert.ok(firstLeftPan > 0);
   assert.equal(runNextFrame(32), true);
-  assert.ok(readPan() < firstLeftPan);
+  assert.ok(readPan() > firstLeftPan);
 
   movePointer(500);
   assert.equal(frameCallbacks.size, 0);
@@ -197,7 +205,7 @@ test('scene and app scripts initialize together as classic browser scripts', asy
   elements.get('[data-zoom-in]').click();
   movePointer(960);
   assert.equal(runNextFrame(16), true);
-  assert.ok(readPan() > 0);
+  assert.ok(readPan() < 0);
 
   for (let frame = 0; frame < 100; frame += 1) runNextFrame(32 + frame * 16);
   assert.ok(readPan() <= 1000 * 0.2 * 0.46);
