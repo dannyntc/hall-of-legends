@@ -43,7 +43,11 @@ a { text-decoration: none; }
   position: relative;
   overflow: hidden;
   background: var(--blue-night);
+  cursor: grab;
 }
+.sanctuary.is-panning { cursor: grabbing; user-select: none; }
+.sanctuary.is-panning .legends { transition: none; }
+.sanctuary a { cursor: pointer; }
 
 .scene-art,
 .scene-vignette,

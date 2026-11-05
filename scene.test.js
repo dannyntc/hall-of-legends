@@ -71,24 +71,6 @@ test('scene and app scripts initialize together as classic browser scripts', asy
   const appSource = await readFile(new URL('./app.js', import.meta.url), 'utf8');
   const listeners = new Map();
   const sanctuaryListeners = new Map();
-  const stageListeners = new Map();
-  const frameCallbacks = new Map();
-  let nextFrameId = 0;
-
-  const requestAnimationFrame = (handler) => {
-    const id = ++nextFrameId;
-    frameCallbacks.set(id, handler);
-    return id;
-  };
-  const cancelAnimationFrame = (id) => frameCallbacks.delete(id);
-  const runNextFrame = (timestamp) => {
-    const next = frameCallbacks.entries().next().value;
-    if (!next) return false;
-    const [id, handler] = next;
-    frameCallbacks.delete(id);
-    handler(timestamp);
-    return true;
-  };
   const readPan = () => Number.parseFloat(legends.style.values['--scene-pan-x']);
   const createControl = () => {
     const controlListeners = new Map();
@@ -107,15 +89,22 @@ test('scene and app scripts initialize together as classic browser scripts', asy
     set innerHTML(value) { this.html = value; },
     querySelector() { return null; },
   };
+  const sanctuaryClasses = new Set();
   const sanctuary = {
-    classList: { add() {}, remove() {}, contains() { return false; } },
+    classList: {
+      add(name) { sanctuaryClasses.add(name); },
+      remove(name) { sanctuaryClasses.delete(name); },
+      contains(name) { return sanctuaryClasses.has(name); },
+    },
     dataset: {},
     style: { setProperty() {} },
     addEventListener(type, handler) { sanctuaryListeners.set(type, handler); },
+    setPointerCapture() {},
+    hasPointerCapture() { return true; },
+    releasePointerCapture() {},
   };
   const stage = {
     clientWidth: 1000,
-    addEventListener(type, handler) { stageListeners.set(type, handler); },
     getBoundingClientRect() { return { left: 0, right: 1000, top: 0, bottom: 700, width: 1000, height: 700 }; },
   };
   const elements = new Map([
@@ -151,8 +140,6 @@ test('scene and app scripts initialize together as classic browser scripts', asy
     matchMedia() { return { matches: false }; },
     setTimeout() { return 1; },
     clearTimeout() {},
-    requestAnimationFrame,
-    cancelAnimationFrame,
     window: null,
   });
   browserContext.window = browserContext;
@@ -171,9 +158,10 @@ test('scene and app scripts initialize together as classic browser scripts', asy
   assert.equal(legends.style.values['--scene-zoom'], '1');
   assert.equal(legends.style.values['--scene-pan-x'], '0px');
 
-  elements.get('[data-zoom-in]').click();
-  const moveSanctuary = sanctuaryListeners.get('pointermove');
-  const movePointer = (clientX, pointerType = 'mouse', target = stage) => moveSanctuary({
+  const pointerDown = sanctuaryListeners.get('pointerdown');
+  const pointerMove = sanctuaryListeners.get('pointermove');
+  const pointerUp = sanctuaryListeners.get('pointerup');
+  const movePointer = (clientX, pointerType = 'mouse', target = stage) => pointerMove({
     clientX,
     clientY: 350,
     pointerId: 1,
@@ -182,38 +170,31 @@ test('scene and app scripts initialize together as classic browser scripts', asy
     preventDefault() {},
   });
 
-  const headerTarget = {
-    closest(selector) {
-      return selector === 'button, a, [data-focus-card]' ? this : null;
-    },
-  };
-
-  movePointer(40, 'mouse', headerTarget);
-  assert.equal(frameCallbacks.size, 1);
-  assert.equal(runNextFrame(16), true);
-  const firstLeftPan = readPan();
-  assert.ok(firstLeftPan > 0);
-  assert.equal(runNextFrame(32), true);
-  assert.ok(readPan() > firstLeftPan);
-
-  movePointer(500);
-  assert.equal(frameCallbacks.size, 0);
-  const stoppedPan = readPan();
-  assert.equal(runNextFrame(48), false);
-  assert.equal(readPan(), stoppedPan);
-
-  elements.get('[data-reset-view]').click();
-  elements.get('[data-zoom-in]').click();
-  movePointer(960);
-  assert.equal(runNextFrame(16), true);
+  pointerDown({ clientX: 500, clientY: 350, pointerId: 1, pointerType: 'mouse', button: 0, target: stage });
+  movePointer(420);
   assert.ok(readPan() < 0);
+  assert.equal(sanctuary.classList.contains('is-panning'), true);
+  pointerUp({ pointerId: 1 });
+  assert.equal(sanctuary.classList.contains('is-panning'), false);
 
-  for (let frame = 0; frame < 100; frame += 1) runNextFrame(32 + frame * 16);
-  assert.ok(readPan() <= 1000 * 0.2 * 0.46);
+  elements.get('[data-reset-view]').click();
+  assert.equal(readPan(), 0);
+  pointerDown({ clientX: 500, clientY: 350, pointerId: 1, pointerType: 'mouse', button: 0, target: stage });
+  movePointer(580);
+  assert.ok(readPan() > 0);
+  pointerUp({ pointerId: 1 });
 
   elements.get('[data-reset-view]').click();
   elements.get('[data-zoom-in]').click();
-  movePointer(40, 'touch');
-  assert.equal(frameCallbacks.size, 0);
+  pointerDown({ clientX: 500, clientY: 350, pointerId: 1, pointerType: 'mouse', button: 0, target: stage });
+  movePointer(2000);
+  assert.equal(readPan(), 1000 * (0.08 + 0.2 * 0.46));
+  pointerUp({ pointerId: 1 });
+
+  elements.get('[data-reset-view]').click();
+  pointerDown({ clientX: 500, clientY: 350, pointerId: 1, pointerType: 'touch', button: 0, target: stage });
+  movePointer(200);
+  assert.equal(readPan(), 0);
+  pointerUp({ pointerId: 1 });
 });
 

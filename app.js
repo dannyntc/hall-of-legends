@@ -25,16 +25,15 @@ let reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matche
 let sceneZoom = 1;
 let scenePanX = 0;
 let panGesture = null;
-let edgePanDirection = 0;
-let edgePanFrame = 0;
-let edgePanLastTime = null;
+let suppressedCharacterClick = null;
 
 const MIN_SCENE_ZOOM = 1;
 const MAX_SCENE_ZOOM = 2.4;
 const SCENE_ZOOM_STEP = 0.2;
 const SCENE_PAN_STEP = 160;
-const EDGE_PAN_ZONE = 0.1;
-const EDGE_PAN_SPEED = 0.45;
+const BASE_SCENE_PAN = 0.08;
+const ZOOM_SCENE_PAN = 0.46;
+const PAN_DRAG_THRESHOLD = 6;
 
 function renderRoster() {
   legends.innerHTML = characterRoster.map((character, index) => `
@@ -52,7 +51,13 @@ function renderRoster() {
   `).join('');
 
   document.querySelectorAll('[data-character-id]').forEach((button) => {
-    button.addEventListener('click', () => selectCharacter(button.dataset.characterId));
+    button.addEventListener('click', () => {
+      if (suppressedCharacterClick === button) {
+        suppressedCharacterClick = null;
+        return;
+      }
+      selectCharacter(button.dataset.characterId);
+    });
     button.addEventListener('mouseenter', () => button.classList.add('is-active'));
     button.addEventListener('mouseleave', () => button.classList.remove('is-active'));
   });
@@ -85,7 +90,7 @@ function announce(message) {
 
 function getMaxScenePan() {
   const stageWidth = stage.clientWidth || window.innerWidth;
-  return Math.max(0, stageWidth * (sceneZoom - 1) * 0.46);
+  return stageWidth * (BASE_SCENE_PAN + (sceneZoom - 1) * ZOOM_SCENE_PAN);
 }
 
 function clampScenePan(value) {
@@ -118,7 +123,7 @@ function setScenePan(nextPan) {
 }
 
 function resetSceneView() {
-  stopEdgePan();
+  cancelPan();
   sceneZoom = MIN_SCENE_ZOOM;
   scenePanX = 0;
   applySceneView();
@@ -182,7 +187,7 @@ function clearSelection({ restoreFocus = true } = {}) {
 
 function setReducedMotion(value) {
   reducedMotion = value;
-  if (value) stopEdgePan();
+  if (value) cancelPan();
   document.body.classList.toggle('reduced-motion', value);
   motionToggle.setAttribute('aria-pressed', String(value));
   motionToggle.setAttribute('aria-label', value ? 'Disable reduced motion' : 'Enable reduced motion');
@@ -218,69 +223,6 @@ function resetParallax() {
   sanctuary.style.setProperty('--parallax-y', '0px');
 }
 
-function stopEdgePan() {
-  edgePanDirection = 0;
-  edgePanLastTime = null;
-  if (edgePanFrame) {
-    window.cancelAnimationFrame(edgePanFrame);
-    edgePanFrame = 0;
-  }
-}
-
-function getEdgePanDirection(clientX) {
-  const stageRect = stage.getBoundingClientRect();
-  const edgeWidth = stageRect.width * EDGE_PAN_ZONE;
-  if (clientX <= stageRect.left + edgeWidth) return 1;
-  if (clientX >= stageRect.right - edgeWidth) return -1;
-  return 0;
-}
-
-function runEdgePan(timestamp) {
-  edgePanFrame = 0;
-  if (!edgePanDirection || sceneZoom === MIN_SCENE_ZOOM || reducedMotion || sanctuary.classList.contains('is-focused')) {
-    stopEdgePan();
-    return;
-  }
-
-  const elapsed = edgePanLastTime === null
-    ? 16
-    : Math.min(64, Math.max(0, timestamp - edgePanLastTime));
-  edgePanLastTime = timestamp;
-  setScenePan(scenePanX + edgePanDirection * elapsed * EDGE_PAN_SPEED);
-
-  const panLimit = getMaxScenePan();
-  if (Math.abs(scenePanX) >= panLimit) {
-    stopEdgePan();
-    return;
-  }
-  edgePanFrame = window.requestAnimationFrame(runEdgePan);
-}
-
-function updateEdgePan(event) {
-  if (
-    (event.pointerType && event.pointerType !== 'mouse')
-    || panGesture
-    || isEdgePanPausedTarget(event.target)
-    || sceneZoom === MIN_SCENE_ZOOM
-    || reducedMotion
-    || sanctuary.classList.contains('is-focused')
-  ) {
-    stopEdgePan();
-    return;
-  }
-
-  const nextDirection = getEdgePanDirection(event.clientX);
-  if (!nextDirection) {
-    stopEdgePan();
-    return;
-  }
-  if (nextDirection === edgePanDirection && edgePanFrame) return;
-
-  stopEdgePan();
-  edgePanDirection = nextDirection;
-  edgePanFrame = window.requestAnimationFrame(runEdgePan);
-}
-
 function isStageInteractiveTarget(target) {
   return Boolean(
     target?.closest?.('button, a, [data-focus-card]')
@@ -288,42 +230,50 @@ function isStageInteractiveTarget(target) {
   );
 }
 
-function isEdgePanPausedTarget(target) {
-  return Boolean(target?.closest?.('.scene-controls, [data-focus-card]'));
-}
-
 function beginPan(event) {
-  stopEdgePan();
-  if (sceneZoom === MIN_SCENE_ZOOM || isStageInteractiveTarget(event.target)) return;
+  if (
+    (event.pointerType && event.pointerType !== 'mouse')
+    || (event.button !== undefined && event.button !== 0)
+    || isStageInteractiveTarget(event.target)
+  ) return;
 
   panGesture = {
     pointerId: event.pointerId,
     startX: event.clientX,
     originX: scenePanX,
+    characterButton: event.target?.closest?.('[data-character-id]') || null,
+    moved: false,
   };
-  stage.setPointerCapture?.(event.pointerId);
+  sanctuary.classList.add('is-panning');
+  sanctuary.setPointerCapture?.(event.pointerId);
 }
 
 function movePanOrApplyParallax(event) {
   if (!panGesture) {
-    updateEdgePan(event);
     applyParallax(event);
     return;
   }
 
-  stopEdgePan();
   const delta = event.clientX - panGesture.startX;
-  if (Math.abs(delta) > 4) {
+  if (Math.abs(delta) > PAN_DRAG_THRESHOLD) {
+    panGesture.moved = true;
+    suppressedCharacterClick = panGesture.characterButton;
     event.preventDefault?.();
     setScenePan(panGesture.originX + delta);
   }
 }
 
 function endPan(event) {
-  stopEdgePan();
   if (!panGesture) return;
-  if (stage.hasPointerCapture?.(event.pointerId)) stage.releasePointerCapture(event.pointerId);
+  if (sanctuary.hasPointerCapture?.(event.pointerId)) sanctuary.releasePointerCapture(event.pointerId);
   panGesture = null;
+  sanctuary.classList.remove('is-panning');
+}
+
+function cancelPan() {
+  if (!panGesture) return;
+  panGesture = null;
+  sanctuary.classList.remove('is-panning');
 }
 
 renderRoster();
@@ -342,16 +292,16 @@ motionToggle.addEventListener('click', () => setReducedMotion(!reducedMotion));
 zoomOut.addEventListener('click', () => setSceneZoom(sceneZoom - SCENE_ZOOM_STEP));
 zoomIn.addEventListener('click', () => setSceneZoom(sceneZoom + SCENE_ZOOM_STEP));
 resetView.addEventListener('click', resetSceneView);
-stage.addEventListener('pointerdown', beginPan);
+sanctuary.addEventListener('pointerdown', beginPan);
 sanctuary.addEventListener('pointermove', movePanOrApplyParallax, { passive: false });
-stage.addEventListener('pointerup', endPan);
-stage.addEventListener('pointercancel', endPan);
+sanctuary.addEventListener('pointerup', endPan);
+sanctuary.addEventListener('pointercancel', endPan);
+sanctuary.addEventListener('lostpointercapture', cancelPan);
 sanctuary.addEventListener('pointerleave', () => {
-  stopEdgePan();
   if (!panGesture) resetParallax();
 });
 window.addEventListener?.('resize', applySceneView);
-window.addEventListener?.('blur', stopEdgePan);
+window.addEventListener?.('blur', cancelPan);
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && selectedId) {
